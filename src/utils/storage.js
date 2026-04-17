@@ -1,5 +1,6 @@
 const DECKS_KEY = 'flashcard_decks';
 const SETTINGS_KEY = 'flashcard_settings';
+const HEATMAP_KEY = 'flashcard_heatmap';
 
 export function loadDecks() {
   try {
@@ -15,25 +16,51 @@ export function saveDecks(decks) {
 export function loadSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    return raw ? JSON.parse(raw) : { dailyGoal: 20, theme: 'dark' };
-  } catch { return { dailyGoal: 20, theme: 'dark' }; }
+    return raw ? JSON.parse(raw) : { dailyGoal: 20 };
+  } catch { return { dailyGoal: 20 }; }
 }
 
 export function saveSettings(settings) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
+// Key: "YYYY-MM-DD" → count
+export function getHeatmapData() {
+  try {
+    const raw = localStorage.getItem(HEATMAP_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 export function getTodayReviews() {
-  const key = `reviews_${new Date().toDateString()}`;
-  try { return parseInt(localStorage.getItem(key) || '0'); }
-  catch { return 0; }
+  const data = getHeatmapData();
+  return data[todayKey()] || 0;
 }
 
 export function incrementTodayReviews() {
-  const key = `reviews_${new Date().toDateString()}`;
-  const cur = getTodayReviews();
-  localStorage.setItem(key, String(cur + 1));
-  return cur + 1;
+  const data = getHeatmapData();
+  const key = todayKey();
+  data[key] = (data[key] || 0) + 1;
+  localStorage.setItem(HEATMAP_KEY, JSON.stringify(data));
+  return data[key];
+}
+
+// Returns last N days as [{date, count, dateStr}]
+export function getLast90Days() {
+  const data = getHeatmapData();
+  const days = [];
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    days.push({ key, count: data[key] || 0, date: d });
+  }
+  return days;
 }
 
 export function getStreak() {
@@ -44,8 +71,8 @@ export function getStreak() {
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
     if (streak.lastDate === today) return streak;
-    if (streak.lastDate === yesterday) return streak; // still valid
-    return { count: 0, lastDate: null }; // broken
+    if (streak.lastDate === yesterday) return streak;
+    return { count: 0, lastDate: null };
   } catch { return { count: 0, lastDate: null }; }
 }
 

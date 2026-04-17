@@ -28,6 +28,7 @@ function AppContent() {
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={<Home decks={decks} deleteDeck={deleteDeck} />} />
           <Route path="/create" element={<CreateDeck addDeck={addDeck} />} />
+          <Route path="/study/weak" element={<StudySession weakMode={true} />} />
           <Route path="/deck/:id" element={<DeckView decks={decks} updateDeck={updateDeck} deleteDeck={deleteDeck} />} />
           <Route path="/study/:id" element={<StudySession decks={decks} updateDeck={updateDeck} />} />
         </Routes>
