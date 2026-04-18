@@ -1,29 +1,42 @@
 import { v4 as uuidv4 } from 'uuid';
 
-const GROQ_API_KEY = process.env.REACT_APP_GROQ_API_KEY;
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
-async function callGroq(messages, maxTokens = 3000) {
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.4,
-      max_tokens: maxTokens,
-      stream: false,
-      messages,
-    }),
-  });
+// ── Delay helper ──
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(`Groq ${response.status}: ${err?.error?.message || 'Unknown error'}`);
+// ── Retry with exponential backoff ──
+// Agar 429 aaya → wait karke dobara try karo
+async function callGroqWithRetry(messages, maxTokens = 2000, retries = 3) {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const response = await fetch(`${API_URL}/api/generate`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    // Authorization nahi — key server pe hai
+  },
+  body: JSON.stringify({ messages, max_tokens: maxTokens }),
+});
+
+    // Rate limit hit — wait aur retry
+    if (response.status === 429) {
+      // Groq response header mein retry-after time hota hai
+      const retryAfter = response.headers.get('retry-after');
+      const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : (attempt + 1) * 8000;
+      console.warn(`Rate limit hit. Waiting ${waitMs / 1000}s before retry ${attempt + 1}...`);
+      await sleep(waitMs);
+      continue; // dobara try karo
+    }
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(`Groq ${response.status}: ${err?.error?.message || 'Unknown error'}`);
+    }
+
+    const data = await response.json();
+    return data?.choices?.[0]?.message?.content || '';
   }
-  const data = await response.json();
-  return data?.choices?.[0]?.message?.content || '';
+  throw new Error('Max retries reached. Please try again in a moment.');
 }
 
 function parseCards(rawText) {
@@ -33,8 +46,9 @@ function parseCards(rawText) {
   return JSON.parse(match[0]);
 }
 
-// Split text into chunks of ~3000 chars with overlap
-function chunkText(text, chunkSize = 3500, overlap = 400) {
+// ── Smarter chunking ──
+// Chunk size chota kiya → tokens kam → rate limit slower
+function chunkText(text, chunkSize = 2500, overlap = 300) {
   const chunks = [];
   let start = 0;
   while (start < text.length) {
@@ -46,64 +60,64 @@ function chunkText(text, chunkSize = 3500, overlap = 400) {
   return chunks;
 }
 
-const SYSTEM_PROMPT = `You are an expert educator and cognitive scientist. Create high-quality flashcards using these principles:
+// ── Compact system prompt ──
+// Chhota prompt = kam tokens = rate limit aaram se handle hoga
+const SYSTEM_PROMPT = `Expert educator. Create flashcards mixing these types:
+1. DEFINITION — what is X
+2. MECHANISM — how does X work
+3. DISTINCTION — X vs Y difference
+4. APPLICATION — when/why use X
+5. CONSEQUENCE — what happens if X
+6. EXAMPLE — real example of X
+7. EDGE_CASE — exception/limitation of X
 
-CARD TYPES to mix (very important):
-1. DEFINITION — "What is [term]?" → concise definition
-2. MECHANISM — "How does X work?" → step-by-step or cause-effect
-3. DISTINCTION — "What's the difference between X and Y?"
-4. APPLICATION — "When/why would you use X?"
-5. CONSEQUENCE — "What happens if X occurs?"
-6. EXAMPLE — "Give an example of X in context"
-7. EDGE CASE — "What is an exception/limitation of X?"
-
-QUALITY RULES:
-- Each card tests exactly ONE idea (atomic)
-- Front: specific, unambiguous question
-- Back: complete but concise (1-4 sentences max)
-- Never ask trivial "What is X?" when a deeper question is possible
-- Math/science: include formulas or worked examples in back
-
-Return ONLY a raw JSON array. No markdown, no explanation.`;
+Rules: one idea per card, specific questions, concise answers (max 3 sentences).
+Return ONLY raw JSON array, no markdown.`;
 
 export async function generateFlashcardsFromText(text, deckTitle, onProgress) {
   const cleanText = text.replace(/\s+/g, ' ').trim();
 
-  // For short texts use single call, for long texts chunk it
-  const chunks = cleanText.length > 4000
-    ? chunkText(cleanText, 3500, 400)
-    : [cleanText];
+  // Short text → 1 call, long text → max 3 chunks (not 4)
+  const chunks = cleanText.length > 3000
+    ? chunkText(cleanText, 2500, 300).slice(0, 3) // max 3 chunks
+    : [cleanText.slice(0, 5000)];                  // single call max 5000 chars
 
-  const effectiveChunks = chunks.slice(0, 4); // max 4 chunks to avoid rate limits
   let allParsed = [];
 
-  for (let i = 0; i < effectiveChunks.length; i++) {
-    onProgress?.(`Generating cards from section ${i + 1} of ${effectiveChunks.length}...`);
+  for (let i = 0; i < chunks.length; i++) {
+    onProgress?.(`Generating cards — section ${i + 1} of ${chunks.length}...`);
 
-    const cardsPerChunk = effectiveChunks.length === 1 ? '15-20' : '8-10';
+    const cardsPerChunk = chunks.length === 1 ? '15-18' : '7-9';
 
-    const raw = await callGroq([
+    const raw = await callGroqWithRetry([
       { role: 'system', content: SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `Create ${cardsPerChunk} diverse flashcards for "${deckTitle}" from this content.
-Mix ALL card types. Return ONLY JSON array:
+        content: `Create ${cardsPerChunk} flashcards for "${deckTitle}". Mix ALL 7 types.
+Return ONLY JSON array:
 [{"front":"...","back":"...","topic":"...","difficulty":"easy|medium|hard","type":"definition|mechanism|distinction|application|consequence|example|edge_case"}]
 
 Content:
-${effectiveChunks[i]}`
+${chunks[i]}`
       }
-    ]);
+    ], 2000); // max_tokens 2000 → was 3000, saves tokens
 
     try {
       const parsed = parseCards(raw);
       allParsed.push(...parsed);
     } catch (e) {
-      console.warn(`Chunk ${i+1} parse failed:`, e.message);
+      console.warn(`Chunk ${i + 1} parse failed:`, e.message);
+    }
+
+    // ── Delay between chunks ──
+    // 2 second gap taaki rate limit na hit ho
+    if (i < chunks.length - 1) {
+      onProgress?.(`Pausing briefly before next section...`);
+      await sleep(2000);
     }
   }
 
-  // Deduplicate similar fronts
+  // Deduplicate
   onProgress?.('Finalizing cards...');
   const seen = new Set();
   const unique = allParsed.filter(c => {
@@ -113,7 +127,6 @@ ${effectiveChunks[i]}`
     return true;
   });
 
-  // Map to full card objects with SM-2 fields
   return unique
     .filter(c => c.front && c.back)
     .map(c => ({
