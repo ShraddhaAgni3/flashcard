@@ -39,11 +39,16 @@ export function getDueCards(cards) {
 }
 
 export function getMasteryLevel(card) {
-  const { repetitions = 0, easeFactor = 2.5, quality = 0 } = card;
-  if (repetitions === 0) return 'new';
-  if (quality < 3) return 'learning';
+  const { repetitions = 0, easeFactor = 2.5, quality = null, lastReviewed = null } = card;
+
+  if (!lastReviewed) return 'new';
+
+  if (quality !== null && quality < 3) return 'learning';
+
   if (repetitions < 3) return 'familiar';
+
   if (easeFactor >= 2.3 && repetitions >= 5) return 'mastered';
+
   return 'reviewing';
 }
 
