@@ -2,30 +2,29 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
-// ── Delay helper ──
+
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// ── Retry with exponential backoff ──
-// Agar 429 aaya → wait karke dobara try karo
+
 async function callGroqWithRetry(messages, maxTokens = 2000, retries = 3) {
   for (let attempt = 0; attempt < retries; attempt++) {
     const response = await fetch(`${API_URL}/api/generate`, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    // Authorization nahi — key server pe hai
+    
   },
   body: JSON.stringify({ messages, max_tokens: maxTokens }),
 });
 
-    // Rate limit hit — wait aur retry
+    
     if (response.status === 429) {
-      // Groq response header mein retry-after time hota hai
+      
       const retryAfter = response.headers.get('retry-after');
       const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : (attempt + 1) * 8000;
       console.warn(`Rate limit hit. Waiting ${waitMs / 1000}s before retry ${attempt + 1}...`);
       await sleep(waitMs);
-      continue; // dobara try karo
+      continue; 
     }
 
     if (!response.ok) {
@@ -46,8 +45,7 @@ function parseCards(rawText) {
   return JSON.parse(match[0]);
 }
 
-// ── Smarter chunking ──
-// Chunk size chota kiya → tokens kam → rate limit slower
+
 function chunkText(text, chunkSize = 2500, overlap = 300) {
   const chunks = [];
   let start = 0;
@@ -60,8 +58,7 @@ function chunkText(text, chunkSize = 2500, overlap = 300) {
   return chunks;
 }
 
-// ── Compact system prompt ──
-// Chhota prompt = kam tokens = rate limit aaram se handle hoga
+
 const SYSTEM_PROMPT = `Expert educator. Create flashcards mixing these types:
 1. DEFINITION — what is X
 2. MECHANISM — how does X work
@@ -77,10 +74,10 @@ Return ONLY raw JSON array, no markdown.`;
 export async function generateFlashcardsFromText(text, deckTitle, onProgress) {
   const cleanText = text.replace(/\s+/g, ' ').trim();
 
-  // Short text → 1 call, long text → max 3 chunks (not 4)
+  
   const chunks = cleanText.length > 3000
-    ? chunkText(cleanText, 2500, 300).slice(0, 3) // max 3 chunks
-    : [cleanText.slice(0, 5000)];                  // single call max 5000 chars
+    ? chunkText(cleanText, 2500, 300).slice(0, 3) 
+    : [cleanText.slice(0, 5000)];                  
 
   let allParsed = [];
 
@@ -110,7 +107,7 @@ ${chunks[i]}`
     }
 
     // ── Delay between chunks ──
-    // 2 second gap taaki rate limit na hit ho
+    
     if (i < chunks.length - 1) {
       onProgress?.(`Pausing briefly before next section...`);
       await sleep(2000);

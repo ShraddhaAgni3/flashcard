@@ -1,5 +1,3 @@
-// SM-2 Spaced Repetition Algorithm
-// Quality: 0-5 (0-1=blackout/total fail, 2=fail, 3=pass barely, 4=pass, 5=perfect)
 
 export function sm2(card, quality) {
   let { easeFactor = 2.5, interval = 1, repetitions = 0 } = card;

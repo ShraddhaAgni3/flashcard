@@ -1,6 +1,3 @@
-// PDF text extraction using PDF.js from CDN
-// Loaded dynamically to avoid bundle issues
-
 export async function extractTextFromPDF(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

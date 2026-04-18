@@ -50,7 +50,7 @@ export function incrementTodayReviews() {
   return data[key];
 }
 
-// Returns last N days as [{date, count, dateStr}]
+
 export function getLast90Days() {
   const data = getHeatmapData();
   const days = [];
