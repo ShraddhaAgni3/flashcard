@@ -107,24 +107,43 @@ export default function StudySession({ decks, updateDeck }) {
     if (!flipped) return;
     const card = queue[currentIdx];
     if (!card) return;
+
     const updated = sm2(card, quality);
+
+    // ✅ Fix 1: Pehle ref mein daalo
     updatedCardsRef.current[card.id] = updated;
+
     const isCorrect = quality >= 3;
     setLastQuality(quality);
     setFeedback(Date.now());
+
     setSessionStats(prev => {
       const newStreak = isCorrect ? prev.currentStreak + 1 : 0;
-      return { reviewed: prev.reviewed + 1, correct: prev.correct + (isCorrect ? 1 : 0), bestStreak: Math.max(prev.bestStreak, newStreak), currentStreak: newStreak };
+      return {
+        reviewed: prev.reviewed + 1,
+        correct: prev.correct + (isCorrect ? 1 : 0),
+        bestStreak: Math.max(prev.bestStreak, newStreak),
+        currentStreak: newStreak,
+      };
     });
+
     incrementTodayReviews();
+
     const nextIdx = currentIdx + 1;
     if (nextIdx >= queue.length) {
-      const finalCards = deck.cards.map(c => updatedCardsRef.current[c.id] || c);
+      
+      const allUpdates = { ...updatedCardsRef.current };
+      const finalCards = deck.cards.map(c =>
+        allUpdates[c.id] ? { ...allUpdates[c.id] } : c
+      );
       updateDeck({ ...deck, cards: finalCards });
       updateStreak();
       setShowConfetti(true);
       setTimeout(() => setDone(true), 600);
     } else {
+      if (!isCorrect) {
+        setQueue(prev => [...prev, { ...updated }]);
+      }
       setTimeout(() => { setCurrentIdx(nextIdx); setFlipped(false); }, 150);
     }
   }, [flipped, currentIdx, queue, deck]);
@@ -148,8 +167,8 @@ export default function StudySession({ decks, updateDeck }) {
             <p style={{ color: 'var(--text2)', marginBottom: 40, fontSize: 15 }}>Session complete · {sessionStats.reviewed} cards reviewed</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 20, width: '100%' }}>
               {[
-                { label: 'Accuracy', value: `${accuracy}%`, color: accuracy >= 75 ? 'var(--green)' : accuracy >= 50 ? 'var(--yellow)' : 'var(--orange)' },
-                { label: 'Correct', value: sessionStats.correct, color: 'var(--green)' },
+                { label: 'Accuracy',    value: `${accuracy}%`,                color: accuracy >= 75 ? 'var(--green)' : accuracy >= 50 ? 'var(--yellow)' : 'var(--orange)' },
+                { label: 'Correct',     value: sessionStats.correct,           color: 'var(--green)' },
                 { label: 'Best Streak', value: `${sessionStats.bestStreak}🔥`, color: 'var(--orange)' },
               ].map((s, i) => (
                 <motion.div key={s.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 + i * 0.1 }}
@@ -199,7 +218,9 @@ export default function StudySession({ decks, updateDeck }) {
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {sessionStats.currentStreak >= 3 && (
-            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ fontSize: 13, color: 'var(--orange)' }}>🔥 {sessionStats.currentStreak}</motion.span>
+            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ fontSize: 13, color: 'var(--orange)' }}>
+              🔥 {sessionStats.currentStreak}
+            </motion.span>
           )}
           <span style={{ fontSize: 13, color: 'var(--text3)' }}>{currentIdx + 1} / {queue.length}</span>
         </div>
@@ -217,7 +238,6 @@ export default function StudySession({ decks, updateDeck }) {
           <span className={`tag tag-${level}`}>{level}</span>
         </div>
 
-        {/* THE CARD */}
         <AnimatePresence mode="wait">
           <motion.div key={`${card.id}-${flipped ? 'back' : 'front'}`}
             initial={{ rotateY: flipped ? -80 : 80, opacity: 0, scale: 0.95 }}
@@ -226,56 +246,36 @@ export default function StudySession({ decks, updateDeck }) {
             transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
             onClick={!flipped ? () => setFlipped(true) : undefined}
             style={{
-              background: isWeak
-                ? 'linear-gradient(135deg, #18100f 0%, var(--bg2) 60%)'
-                : 'var(--bg2)',
-              border: `1px solid ${
-                isWeak
-                  ? flipped ? 'rgba(239,68,68,0.45)' : 'rgba(239,68,68,0.2)'
-                  : flipped ? levelColor + '55' : 'var(--border)'
-              }`,
+              background: isWeak ? 'linear-gradient(135deg, #18100f 0%, var(--bg2) 60%)' : 'var(--bg2)',
+              border: `1px solid ${isWeak ? (flipped ? 'rgba(239,68,68,0.45)' : 'rgba(239,68,68,0.2)') : (flipped ? levelColor + '55' : 'var(--border)')}`,
               borderRadius: 24, padding: '52px 44px', minHeight: 300,
               display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
               textAlign: 'center', cursor: flipped ? 'default' : 'pointer',
-              boxShadow: isWeak
-                ? '0 0 40px rgba(239,68,68,0.07), var(--shadow)'
-                : flipped ? `0 0 60px ${levelColor}18, var(--shadow)` : 'var(--shadow)',
+              boxShadow: isWeak ? '0 0 40px rgba(239,68,68,0.07), var(--shadow)' : flipped ? `0 0 60px ${levelColor}18, var(--shadow)` : 'var(--shadow)',
               position: 'relative', overflow: 'hidden', marginBottom: 28,
             }}>
 
-            {/* Weak: thin red line at top */}
             {isWeak && (
-              <div style={{
-                position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-                background: 'linear-gradient(90deg, transparent, rgba(239,68,68,0.6), transparent)',
-                pointerEvents: 'none',
-              }} />
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, transparent, rgba(239,68,68,0.6), transparent)', pointerEvents: 'none' }} />
             )}
 
-            {/* Ambient glow */}
             <div style={{
               position: 'absolute', inset: 0,
-              opacity: isWeak ? 0.9 : flipped ? 1 : 0,
-              transition: 'opacity 0.3s',
-              background: isWeak
-                ? 'radial-gradient(ellipse at 50% 100%, rgba(239,68,68,0.08) 0%, transparent 65%)'
-                : `radial-gradient(ellipse at 50% -20%, ${levelColor}15 0%, transparent 65%)`,
+              opacity: isWeak ? 0.9 : flipped ? 1 : 0, transition: 'opacity 0.3s',
+              background: isWeak ? 'radial-gradient(ellipse at 50% 100%, rgba(239,68,68,0.08) 0%, transparent 65%)' : `radial-gradient(ellipse at 50% -20%, ${levelColor}15 0%, transparent 65%)`,
               pointerEvents: 'none',
             }} />
 
-            {/* Card label */}
             <div style={{ position: 'absolute', top: 20, left: 0, right: 0, textAlign: 'center', fontSize: 10, color: isWeak ? 'rgba(239,68,68,0.5)' : 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 600 }}>
               {flipped ? 'Answer' : 'Question'}
             </div>
 
-            {/* Topic pill */}
             {card.topic && (
               <div style={{ position: 'absolute', top: 16, right: 20 }}>
                 <span className="tag tag-new" style={{ fontSize: 10 }}>{card.topic}</span>
               </div>
             )}
 
-            {/* Weak badge */}
             {isWeak && (
               <div style={{ position: 'absolute', top: 16, left: 20, fontSize: 10, color: 'rgba(239,68,68,0.55)', fontWeight: 600, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'rgba(239,68,68,0.55)' }} />
@@ -296,7 +296,6 @@ export default function StudySession({ decks, updateDeck }) {
           </motion.div>
         </AnimatePresence>
 
-        {/* Rating buttons */}
         <AnimatePresence>
           {flipped && (
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.2 }}>
