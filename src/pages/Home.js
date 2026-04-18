@@ -118,13 +118,25 @@ export default function Home({ decks, deleteDeck }) {
   const totalDue = decks.reduce((acc, d) => acc + getDeckStats(d.cards || []).due, 0);
   const totalCards = decks.reduce((acc, d) => acc + (d.cards?.length || 0), 0);
   const allCards = decks.flatMap(d => d.cards || []);
-  const weakCards = allCards.filter(c => c.easeFactor <= 3);
+  const weakCards = allCards.filter(c => c.easeFactor <= 2.3);
   const weakTopics = [...new Set(weakCards.map(c => c.topic))];
   const totalMastered = decks.reduce((acc, d) => acc + (getDeckStats(d.cards || []).masteryLevels.mastered || 0), 0);
   const goalProgress = Math.min(100, Math.round((todayReviews / dailyGoal) * 100));
   const filtered = decks.filter(d => d.title.toLowerCase().includes(search.toLowerCase()) || (d.subject || '').toLowerCase().includes(search.toLowerCase()));
   const greetingHour = new Date().getHours();
-  const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 17 ? 'Good afternoon' : 'Good evening';
+const greetings = [
+  "Let's get smarter today",
+  "Ready to learn something new?",
+  "Small steps → big mastery",
+  "Consistency beats cramming",
+  "You're doing better than you think"
+];
+
+const greeting =
+  (greetingHour < 12 ? "Good morning" :
+   greetingHour < 17 ? "Good afternoon" : "Good evening")
+  + " — " +
+  greetings[Math.floor(Math.random() * greetings.length)];
 
   return (
     <div className="page">
@@ -161,7 +173,7 @@ export default function Home({ decks, deleteDeck }) {
               <motion.div className="progress-bar-fill" initial={{ width: 0 }} animate={{ width: `${goalProgress}%` }} transition={{ duration: 1, delay: 0.3 }}
                 style={{ background: goalProgress >= 100 ? 'var(--green)' : 'linear-gradient(90deg, var(--accent), var(--accent2))' }} />
             </div>
-            {goalProgress >= 100 && <p style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>🎉 Goal reached!</p>}
+            {goalProgress >= 100 && <p style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>🎉 Goal reached — nice consistency!</p>}
           </div>
           <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <span style={{ fontSize: 28 }}>🔥</span>
@@ -182,7 +194,13 @@ export default function Home({ decks, deleteDeck }) {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.25 } }}>
           <ActivityHeatmap />
           {weakTopics.length > 0 && (
-  <div className="card" style={{ marginBottom: 24 }}>
+  <div
+  className="card"
+  style={{
+    marginBottom: 24,
+    boxShadow: '0 0 0 1px rgba(239,68,68,0.2), 0 10px 30px rgba(239,68,68,0.05)'
+  }}
+>
     
     <h3 style={{
       fontFamily: 'var(--font-display)',
