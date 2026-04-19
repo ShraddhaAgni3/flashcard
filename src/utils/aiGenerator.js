@@ -40,6 +40,7 @@ async function callGroqWithRetry(messages, maxTokens = 2000, retries = 3) {
     }
 
     const data = await response.json();
+console.log("FULL RESPONSE:", data);
     return data?.choices?.[0]?.message?.content || '';
   }
   throw new Error('Max retries reached. Please try again in a moment.');
