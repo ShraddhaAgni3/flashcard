@@ -44,6 +44,8 @@
 flashcard-engine/
 ├── public/
 │   └── index.html
+├──api/
+│  └── generate.js
 ├── src/
 │   ├── pages/
 │   │   ├── Home.js          # Dashboard — all decks, stats, streak
@@ -112,16 +114,30 @@ Quality ratings map as:
 
 ## 🔑 API Key
 
-The app uses the Anthropic API for card generation. The API call is made from the browser — in production, proxy this through a backend to keep your key secure.
+The app uses the Groq API (LLaMA models) for flashcard generation.
 
-The `fetch` call in `aiGenerator.js` hits `https://api.anthropic.com/v1/messages` with no API key header (the Claude.ai environment injects it automatically). If running standalone, add:
+For security, all API requests are handled through a serverless backend (Vercel API routes). The API key is stored securely in environment variables and is never exposed to the client.
+
+This ensures that sensitive credentials are protected and aligns with production-grade security practices.
+
+The `fetch` call in `aiGenerator.js` does not directly hit the Groq API from the browser.
+
+Instead, it calls a serverless API route (`/api/generate`), which forwards the request to the Groq API.
+
+The API key is securely injected on the server and never sent to the frontend.
+
+Example Request Flow:
+Frontend → /api/generate → Groq API → Response → Frontend, add:
 ```js
-headers: {
-  'Content-Type': 'application/json',
-  'x-api-key': 'YOUR_KEY',
-  'anthropic-version': '2023-06-01',
-  'anthropic-dangerous-direct-browser-access': 'true',
+Frontend (client-side):
+{
+  "Content-Type": "application/json"
 }
+
+Serverless Function (secure backend):
+{
+  "Content-Type": "application/json",
+  "
 ```
 
 ---
