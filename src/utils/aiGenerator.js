@@ -9,7 +9,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 // Agar 429 aaya → wait karke dobara try karo
 async function callGroqWithRetry(messages, maxTokens = 2000, retries = 3) {
   for (let attempt = 0; attempt < retries; attempt++) {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch('/api/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
