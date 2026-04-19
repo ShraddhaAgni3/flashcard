@@ -127,7 +127,7 @@ Instead, it calls a serverless API route (`/api/generate`), which forwards the r
 The API key is securely injected on the server and never sent to the frontend.
 
 Example Request Flow:
-Frontend → /api/generate → Groq API → Response → Frontend, add:
+Frontend → /api/generate → Groq API → Response → Frontend:
 ```js
 Frontend (client-side):
 {
