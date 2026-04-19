@@ -137,7 +137,8 @@ Frontend (client-side):
 Serverless Function (secure backend):
 {
   "Content-Type": "application/json",
-  "
+  "Authorization": "Bearer <GROQ_API_KEY>"
+}
 ```
 
 ---
