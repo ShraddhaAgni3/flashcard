@@ -1,12 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-
-
-
-// ── Delay helper ──
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// ── Retry with exponential backoff ──
-// Agar 429 aaya → wait karke dobara try karo
 async function callGroqWithRetry(messages, maxTokens = 2000, retries = 3) {
   for (let attempt = 0; attempt < retries; attempt++) {
     const response = await fetch('/api/generate', {
@@ -23,15 +17,13 @@ async function callGroqWithRetry(messages, maxTokens = 2000, retries = 3) {
         messages,
       }),
     });
-
-    // Rate limit hit — wait aur retry
     if (response.status === 429) {
       // Groq response header mein retry-after time hota hai
       const retryAfter = response.headers.get('retry-after');
       const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : (attempt + 1) * 8000;
       console.warn(`Rate limit hit. Waiting ${waitMs / 1000}s before retry ${attempt + 1}...`);
       await sleep(waitMs);
-      continue; // dobara try karo
+      continue; 
     }
 
     if (!response.ok) {
@@ -40,7 +32,6 @@ async function callGroqWithRetry(messages, maxTokens = 2000, retries = 3) {
     }
 
     const data = await response.json();
-console.log("FULL RESPONSE:", data);
     return data?.choices?.[0]?.message?.content || '';
   }
   throw new Error('Max retries reached. Please try again in a moment.');
@@ -68,7 +59,6 @@ function parseCards(rawText) {
   }
 }
 
-// ── Smarter chunking ──
 // Chunk size chota kiya → tokens kam → rate limit slower
 function chunkText(text, chunkSize = 2500, overlap = 300) {
   const chunks = [];
@@ -81,9 +71,6 @@ function chunkText(text, chunkSize = 2500, overlap = 300) {
   }
   return chunks;
 }
-
-// ── Compact system prompt ──
-// Chhota prompt = kam tokens = rate limit aaram se handle hoga
 const SYSTEM_PROMPT = `Expert educator. Create flashcards mixing these types:
 1. DEFINITION — what is X
 2. MECHANISM — how does X work
@@ -138,7 +125,7 @@ FORMAT:
 Content:
 ${chunks[i]}`
       }
-    ], 2000); // max_tokens 2000 → was 3000, saves tokens
+    ], 2000); 
 
     try {
       const parsed = parseCards(raw);
@@ -146,16 +133,11 @@ ${chunks[i]}`
     } catch (e) {
       console.warn(`Chunk ${i + 1} parse failed:`, e.message);
     }
-
-    // ── Delay between chunks ──
-    // 2 second gap taaki rate limit na hit ho
     if (i < chunks.length - 1) {
       onProgress?.(`Pausing briefly before next section...`);
       await sleep(2000);
     }
   }
-
-  // Deduplicate
   onProgress?.('Finalizing cards...');
   const seen = new Set();
   const unique = allParsed.filter(c => {
