@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 
-const GROQ_API_KEY = process.env.REACT_APP_GROQ_API_KEY;
+
 
 // ── Delay helper ──
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -13,11 +13,11 @@ async function callGroqWithRetry(messages, maxTokens = 2000, retries = 3) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        temperature: 0.4,
+        model: 'llama3-8b-8192',
+        temperature: 0.3,
         max_tokens: maxTokens,
         stream: false,
         messages,
@@ -46,10 +46,25 @@ async function callGroqWithRetry(messages, maxTokens = 2000, retries = 3) {
 }
 
 function parseCards(rawText) {
-  const clean = rawText.replace(/```json|```/g, '').trim();
-  const match = clean.match(/\[[\s\S]*\]/);
-  if (!match) throw new Error('No JSON array in response');
-  return JSON.parse(match[0]);
+  try {
+    const clean = rawText
+      .replace(/```json|```/g, '')
+      .replace(/\n/g, ' ')
+      .trim();
+
+    const match = clean.match(/\[[\s\S]*?\]/); // non-greedy
+
+    if (!match) {
+      console.warn("RAW AI RESPONSE:", rawText);
+      return [];
+    }
+
+    return JSON.parse(match[0]);
+
+  } catch (err) {
+    console.warn("Parse failed:", err, rawText);
+    return [];
+  }
 }
 
 // ── Smarter chunking ──
@@ -99,9 +114,25 @@ export async function generateFlashcardsFromText(text, deckTitle, onProgress) {
       { role: 'system', content: SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `Create ${cardsPerChunk} flashcards for "${deckTitle}". Mix ALL 7 types.
-Return ONLY JSON array:
-[{"front":"...","back":"...","topic":"...","difficulty":"easy|medium|hard","type":"definition|mechanism|distinction|application|consequence|example|edge_case"}]
+       content: `Create ${cardsPerChunk} high-quality flashcards for "${deckTitle}".
+
+STRICT RULES:
+- Return ONLY a JSON array
+- Do NOT include any explanation
+- Do NOT include markdown or backticks
+- No text before or after JSON
+- Follow the exact format strictly
+
+FORMAT:
+[
+  {
+    "front": "...",
+    "back": "...",
+    "topic": "...",
+    "difficulty": "easy|medium|hard",
+    "type": "definition|mechanism|distinction|application|consequence|example|edge_case"
+  }
+]
 
 Content:
 ${chunks[i]}`
