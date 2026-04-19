@@ -16,7 +16,7 @@ async function callGroqWithRetry(messages, maxTokens = 2000, retries = 3) {
         
       },
       body: JSON.stringify({
-        model: 'llama3-8b-8192',
+        model: 'llama-3.3-70b-versatile',
         temperature: 0.3,
         max_tokens: maxTokens,
         stream: false,
